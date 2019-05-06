@@ -3,61 +3,27 @@
 -- main.lua Transforms and Anchors
 --
 -----------------------------------------------------------------------------------------
-local ship = display.newImageRect("playerShip1_red.png", 75, 99)
+local physics = require "physics"
+local mathVector = require "libs.mathVector"
+local ship = display.newImageRect("playerShip1_red.png", 99, 75)
+
 ship.x = display.contentCenterX
-ship.y = display.contentCenterY
-ship:rotate(90)
-local cross = display.newImageRect("laserRed11.png", 37, 37)
+ship.y = 450
+ship:rotate(-180)
+local cross = display.newImageRect("cross.png", 37, 37)
 
 local lineToShip = display.newLine( 0, 0, ship.x, ship.y)
 local lineToCross = display.newLine( 0, 0, cross.x, cross.y)
 local lineDist = display.newLine(ship.x, ship.y, cross.x, cross.y)
+local additionalVector = nil
+local additionalAngle = nil
+
+local tPrevious = system.getTimer()
+--math.randomseed(os.time())
 
 lineToShip:setStrokeColor(0, 0, 1)
 lineToCross:setStrokeColor(1, 0, 0)
 lineDist:setStrokeColor(0, 1, 0)
-
--- Calculate magnitude(length) of vectors.
-function CalculateMagnitude( object )
-  local length = math.sqrt(
-    math.pow(object.x, 2) + math.pow(object.y, 2)
-  )
-  print("Lenght:\t" .. length)
-  return length
-end
-
-function CalcualteNormalization( object )
-  local normalizeVector =
-    {
-      x = (object.x / CalculateMagnitude(object)),
-      y = (object.y / CalculateMagnitude(object))
-    }
-  print("Normalized: x " .. normalizeVector.x .. " y " .. normalizeVector.y)
-  return normalizeVector
-end
-
-function CalculateDotProduct(srcObject, dstObject)
-  local dotProduct = srcObject.x * dstObject.x + srcObject.y * dstObject.y
-  print("Dot product: " .. dotProduct)
-  return dotProduct
-end
-
-function DistanceBetweenObjects(srcObject, dstObject)
-  local distance = math.sqrt(
-    math.pow((dstObject.x - srcObject.x), 2) +
-    math.pow((dstObject.y - srcObject.y), 2)
-  )
-  print("Distance:\t" .. distance)
-  return distance
-end
-
-function CalculateAngle(dotProduct, srcLength, dstLength)
-  local angleRad = math.acos(
-    dotProduct / (srcLength * dstLength)
-  )
-  print("Angle:\t" .. angleRad)
-  return angleRad
-end
 
 function tap(event)
   cross.x = event.x
@@ -68,20 +34,70 @@ function tap(event)
   lineDist:removeSelf()
   lineDist = display.newLine(ship.x, ship.y, cross.x, cross.y)
   lineDist:setStrokeColor(0, 1, 0)
-  local crossLength = CalculateMagnitude(cross)
-  CalcualteNormalization(cross)
-  local shipLength = CalculateMagnitude(ship)
-  CalcualteNormalization(ship)
 
-  print("Distance between name cross and ship")
-  local distance = DistanceBetweenObjects(cross , ship)
-  print("Dot Product cross and ship")
-  local dotProduct = CalculateDotProduct(cross, ship)
-  local angle = CalculateAngle(dotProduct, crossLength, shipLength)
-  print("In degrees:\t" .. math.deg(angle))
-  --redShip:rotate(math.deg(angle))
+  if ship.y > 0 then
+    additionalVector = {}
+    additionalVector.x = display.contentCenterX
+    additionalVector.y = 0
+
+    local additionalToShipVec = mathVector.Subtraction(additionalVector, ship)
+    local additionalToShipNormalVec = mathVector.CalcualteNormalization(additionalToShipVec)
+    local unitVectorShip = mathVector.CalcualteNormalization(ship)
+    local angle = math.acos(mathVector.Multiplication(unitVectorShip, additionalToShipNormalVec))
+    additionalAngle = math.deg(angle)
+    print("Additional Angle rad: " .. angle .. " Angle deg: " .. additionalAngle)
+    local crossProdCrossShip =
+        mathVector.CrossProduct(unitVectorShip, additionalToShipNormalVec)
+    print("Additional : " .. crossProdCrossShip.z)
+    if crossProdCrossShip.z > 0 then
+      additionalAngle = additionalAngle * (-1)
+    end
+  end
+
+  local vectorPointsToCross = mathVector.Subtraction(ship, cross)
+  print("Dist: (" .. vectorPointsToCross.x ..
+   " : " .. vectorPointsToCross.y .. ")")
+  local unitVectorShipToCorss = mathVector.CalcualteNormalization(vectorPointsToCross)
+  local unitVectorShip = mathVector.CalcualteNormalization(ship)
+  local angle = math.acos(mathVector.Multiplication(unitVectorShipToCorss, unitVectorShip))
+  local angleDeg = math.deg(angle)
+  print("Angle rad: " .. angle .. " Angle deg: " .. angleDeg)
+  local crossProdCrossShip = mathVector.CrossProduct(unitVectorShipToCorss, unitVectorShip)
+  print("Z: " .. crossProdCrossShip.z)
+
+  if crossProdCrossShip.z > 0 then
+    -- rotate counterclockwise
+    print("Angle before: " .. ship.rotation)
+    ship.rotation = -90
+    if additionalAngle ~= nil then
+      print("counterclockwise additional ")
+      ship:rotate(-(angleDeg) + additionalAngle - ship.rotation)
+    else
+      ship:rotate(-(angleDeg))
+    end
+    print("Angle after: " .. ship.rotation)
+  else
+    -- rotate clockwise
+    print("Angle before: " .. ship.rotation)
+    ship.rotation = -90
+    if additionalAngle ~= nil then
+      print("clockwise additional ")
+      ship:rotate(angleDeg + additionalAngle - ship.rotation)
+    else
+      ship:rotate(angleDeg)
+    end
+    print("Angle after: " .. ship.rotation)
+  end
 
   return true
 end
 
+local function DeltaTimeMove(event)
+  local deltaTime = event.time - tPrevious
+  tPrevious = event.time
+  print("DeltaTime: " .. deltaTime)
+  ship.y = ship.y - deltaTime * 0.01
+end
+
 Runtime:addEventListener("tap", tap)
+--Runtime:addEventListener("enterFrame", DeltaTimeMove)
